@@ -58,7 +58,7 @@ watch(autoRefresh, schedule); onMounted(() => { load(); schedule() }); onBeforeU
     <div v-if="error" class="notice error"><b>暂时无法读取</b><span>{{ error }}</span><button @click="load">重试</button></div>
     <div v-else-if="!loading && !filtered.length" class="empty"><b>当前筛选下没有比赛</b><span>可切换到“全部进行中”或降低概率门槛。</span></div>
     <section v-else><MatchTable :matches="filtered" /></section>
-    <details class="method"><summary>模型如何判断半场是否还有球？</summary><div><p>基础概率先将半场与全场大小盘水位换算为去除庄家利润后的概率，再以盘口球数估计上半场期望进球，并按剩余时间进行泊松折减。25分钟前已有进球时，不直接结束判断，而是继续计算上半场剩余时间“再进至少一球”的概率。</p><p>额外逐项复核252、253、半场追球和“降盘升水”特征；中高水暂按香港盘≥0.90，“10分钟左右”按6–14分钟。最近20场统计的是该队比赛半场总比分大于0的场次。</p><p>规则徽标：绿色为条件全部命中，黄色为关键字段缺失，灰色为不符合。压力值等Titan未提供的数据不会用其他盘口代替，也不会默认命中。这些是经验规则验证，不代表必然结果。</p></div></details>
+    <details class="method"><summary>模型如何判断半场是否还有球？</summary><div><p>基础概率先将半场与全场大小盘水位换算为去除庄家利润后的概率，再以盘口球数估计上半场期望进球，并按剩余时间进行泊松折减。上半场只要已经出现进球，无论进球发生在第几分钟，都会继续计算剩余时间“再进至少一球”的概率。</p><p>额外逐项复核252、253、半场追球和“降盘升水”特征；中高水暂按香港盘≥0.90，“10分钟左右”按6–14分钟。最近20场统计的是该队比赛半场总比分大于0的场次。</p><p>规则徽标：绿色为条件全部命中，黄色为关键字段缺失，灰色为不符合。压力值等Titan未提供的数据不会用其他盘口代替，也不会默认命中。这些是经验规则验证，不代表必然结果。</p></div></details>
   </main>
   <footer><span>Titan007 公开即时数据</span><span>仅供数据研究，不构成投注建议</span></footer>
 </template>

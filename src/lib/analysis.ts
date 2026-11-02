@@ -75,14 +75,8 @@ export function analyzeHalfGoal(match: LiveMatch): Analysis {
   const history = match.halfGoalHistory
   const historySignals = history ? [`${match.home}近${history.home.sample}场半场有球 ${history.home.withGoal} 场`, `${match.away}近${history.away.sample}场半场有球 ${history.away.withGoal} 场`] : ['最近20场半场历史数据未取得']
   const firstHalfGoalCount = match.state === 1 ? match.homeScore + match.awayScore : match.homeHalfScore + match.awayHalfScore
-  const recordedEarlyGoal = match.goalMinutes.some((minute) => minute <= 25)
-  const inferredEarlyGoal = match.state === 1 && match.minute !== null && match.minute <= 25 && firstHalfGoalCount > 0
-  const continueAfterEarlyGoal = recordedEarlyGoal || inferredEarlyGoal
-  if (firstHalfGoalCount > 0 && !continueAfterEarlyGoal) {
-    const hits = rules.filter((rule) => rule.status === 'match').map((rule) => rule.code)
-    return { probability: 100, level: 'done', label: hits.length ? `有球·${hits.join('/')}` : '半场有球已达成', reason: `当前比分 ${match.homeScore}:${match.awayScore}`, signals: [`进球时间 ${match.goalMinutes.filter((m) => m <= 45).join('′、') || '已记录'}`, ...historySignals], rules }
-  }
-  if (match.state !== 1) return { probability: null, level: 'unavailable', label: match.state === 2 ? '半场已结束' : '非上半场', reason: '仅对正在进行且上半场尚未进球的比赛估算', signals: historySignals, rules }
+  const continueAfterGoal = firstHalfGoalCount > 0 || match.goalMinutes.some((minute) => minute <= 45)
+  if (match.state !== 1) return { probability: null, level: 'unavailable', label: match.state === 2 ? '半场已结束' : '非上半场', reason: '仅对正在进行的上半场比赛估算', signals: historySignals, rules }
   if (!match.markets || (match.markets.halfTotal.current.line === null && match.markets.total.current.line === null)) return { probability: null, level: 'unavailable', label: '盘口不足', reason: '当前比赛暂无可用大小盘，不能可靠估算', signals: historySignals, rules }
   const minute = Math.min(45, Math.max(0, match.minute ?? 0)); const halfMarket = match.markets.halfTotal; const half: Triple = halfMarket.current; const full: Triple = match.markets.total.current
   const halfProb = deVigTwoWay(half.left, half.right)?.[0] ?? 0.5; const fullProb = deVigTwoWay(full.left, full.right)?.[0] ?? 0.5
@@ -90,8 +84,8 @@ export function analyzeHalfGoal(match: LiveMatch): Analysis {
   let expectedHalf = (halfLine + fullProjection) / 2; expectedHalf *= 0.82 + 0.34 * halfProb + 0.14 * (fullProb - 0.5)
   const probability = Math.round((1 - Math.exp(-expectedHalf * Math.pow(Math.max(0, (45 - minute) / 45), 0.88))) * 100)
   const [level, baseLabel] = probability >= 70 ? ['high', '高机会'] : probability >= 58 ? ['medium', '中高机会'] : probability >= 45 ? ['watch', '观察'] : ['low', '低机会']
-  const label = continueAfterEarlyGoal ? `下一球·${baseLabel}` : baseLabel
+  const label = continueAfterGoal ? `下一球·${baseLabel}` : baseLabel
   const movement = halfMarket.opening.line !== null && half.line !== null ? (half.line > halfMarket.opening.line ? '半场升盘' : half.line < halfMarket.opening.line ? '半场降盘' : '半场盘不变') : '半场盘变化未知'
-  const earlyGoalSignal = continueAfterEarlyGoal ? [`25分钟前已有进球，继续评估上半场下一球`] : []
-  return { probability, level: level as Analysis['level'], label, reason: `估算上半场剩余 ${45 - minute} 分钟${continueAfterEarlyGoal ? '再' : ''}进至少一球的概率`, signals: [...earlyGoalSignal, `半场大小 ${fmt(half.line)}，大球去水概率 ${Math.round(halfProb * 100)}%`, `全场大小 ${fmt(full.line)}，大球去水概率 ${Math.round(fullProb * 100)}%`, `${movement}；同盘口当前样本 ${match.sameMarketCount} 场`, ...historySignals], rules }
+  const nextGoalSignal = continueAfterGoal ? [`上半场已进 ${Math.max(1, firstHalfGoalCount)} 球，继续评估下一球`] : []
+  return { probability, level: level as Analysis['level'], label, reason: `估算上半场剩余 ${45 - minute} 分钟${continueAfterGoal ? '再' : ''}进至少一球的概率`, signals: [...nextGoalSignal, `半场大小 ${fmt(half.line)}，大球去水概率 ${Math.round(halfProb * 100)}%`, `全场大小 ${fmt(full.line)}，大球去水概率 ${Math.round(fullProb * 100)}%`, `${movement}；同盘口当前样本 ${match.sameMarketCount} 场`, ...historySignals], rules }
 }
