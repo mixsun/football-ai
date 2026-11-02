@@ -22,20 +22,18 @@ const filtered = computed(() => matches.value.filter((m) => {
   const q = query.value.trim().toLowerCase()
   return !q || `${m.league} ${m.home} ${m.away}`.toLowerCase().includes(q)
 }).sort((a, b) => (analyzeHalfGoal(b).probability ?? -1) - (analyzeHalfGoal(a).probability ?? -1)))
-const firstHalf = computed(() => matches.value.filter((m) => m.state === 1).length)
-function schedule() { window.clearInterval(timer); if (autoRefresh.value) timer = window.setInterval(load, 5 * 60_000) }
+function schedule() { window.clearInterval(timer); if (autoRefresh.value) timer = window.setInterval(load, 2 * 60_000) }
 watch(autoRefresh, schedule); onMounted(() => { load(); schedule() }); onBeforeUnmount(() => window.clearInterval(timer))
 </script>
 
 <template>
   <header class="topbar"><div class="brand"><span class="brand-ball">◉</span><div><b>半场有球雷达</b><small>TITAN LIVE MARKET SIGNALS</small></div></div><a href="https://live.titan007.com/" target="_blank" rel="noreferrer">数据源 ↗</a></header>
   <main>
-    <section class="hero"><div><span class="eyebrow">LIVE FOOTBALL INTELLIGENCE</span><h1>从即时盘口里，读出<br><em>上半场下一球</em>的机会</h1><p>综合比赛时间、半场大小盘、全场大小盘、去水概率与盘口变化。概率是透明估算，不是必中推荐。</p></div><div class="live-stat"><small>正在进行</small><strong>{{ matches.length }}</strong><span>其中上半场 {{ firstHalf }} 场</span></div></section>
     <section class="toolbar">
       <div class="segmented"><button :class="{ active: scope === 'first' }" @click="scope = 'first'">上半场</button><button :class="{ active: scope === 'all' }" @click="scope = 'all'">全部进行中</button></div>
       <input v-model="query" type="search" placeholder="搜索联赛或球队" aria-label="搜索联赛或球队">
       <label>最低概率 <select v-model.number="threshold"><option :value="0">全部</option><option :value="45">45%</option><option :value="58">58%</option><option :value="70">70%</option></select></label>
-      <label class="toggle"><input v-model="autoRefresh" type="checkbox"><span></span>5 分钟刷新</label>
+      <label class="toggle"><input v-model="autoRefresh" type="checkbox"><span></span>2 分钟刷新</label>
       <button class="refresh" :disabled="loading" @click="load">{{ loading ? '读取中…' : '立即刷新' }}</button>
     </section>
     <div class="meta"><span><i></i>{{ loading ? '正在同步 Titan' : `显示 ${filtered.length} 场` }}</span><time v-if="fetchedAt">更新于 {{ new Date(fetchedAt).toLocaleTimeString('zh-CN') }}</time></div>
