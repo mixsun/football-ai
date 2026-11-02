@@ -1,0 +1,5 @@
+main{width:100%;max-width:none;padding-left:16px;padding-right:16px}
+.hero{width:100%;padding-left:2vw;padding-right:2vw}
+.toolbar,.meta,.table-shell,.method{width:100%;max-width:none}
+footer{width:100%;max-width:none;padding-left:16px;padding-right:16px}
+@media(max-width:900px){main{width:100%;padding-left:8px;padding-right:8px}}

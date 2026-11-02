@@ -1,0 +1,40 @@
+.verdict {
+  min-width: 126px;
+}
+
+.verdict > small {
+  display: block;
+  margin-top: 4px;
+  color: #86a596;
+  font-size: 9px;
+}
+
+.rule-badges {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.rule-badges em {
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #263d33;
+  color: #799688;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.rule-badges .rule-match {
+  background: #167b58;
+  color: #dffff0;
+}
+
+.rule-badges .rule-unknown {
+  background: #5b4b22;
+  color: #ffe49b;
+}
+
+.rule-badges .rule-miss {
+  opacity: .55;
+}
