@@ -22,13 +22,23 @@ const filtered = computed(() => matches.value.filter((m) => {
   const q = query.value.trim().toLowerCase()
   return !q || `${m.league} ${m.home} ${m.away}`.toLowerCase().includes(q)
 }).sort((a, b) => (analyzeHalfGoal(b).probability ?? -1) - (analyzeHalfGoal(a).probability ?? -1)))
+const firstHalfMatches = computed(() => matches.value.filter((match) => match.state === 1))
+const firstHalfIncomplete = computed(() => firstHalfMatches.value.filter((match) => {
+  if (!match.markets) return true
+  return match.markets.asian.current.line === null || match.markets.total.current.line === null || match.markets.halfTotal.current.line === null
+}).length)
+const updatedTime = computed(() => fetchedAt.value
+  ? new Date(fetchedAt.value).toLocaleTimeString('zh-CN', { hour12: false })
+  : '尚未更新')
 function schedule() { window.clearInterval(timer); if (autoRefresh.value) timer = window.setInterval(load, 2 * 60_000) }
-watch(autoRefresh, schedule); onMounted(() => { load(); schedule() }); onBeforeUnmount(() => window.clearInterval(timer))
+watch(autoRefresh, schedule); onMounted(() => { load(); schedule() }); onBeforeUnmount(() => { window.clearInterval(timer) })
 </script>
 
 <template>
-  <header class="topbar"><div class="brand"><span class="brand-ball">◉</span><div><b>半场有球雷达</b><small>TITAN LIVE MARKET SIGNALS</small></div></div><a href="https://live.titan007.com/" target="_blank" rel="noreferrer">数据源 ↗</a></header>
+  <header class="topbar"><div class="brand"><span class="brand-ball"><i></i></span></div><nav><a href="#radar">实时雷达</a><a href="https://live.titan007.com/" target="_blank" rel="noreferrer">数据源 ↗</a></nav></header>
   <main>
+    <section id="radar" class="radar-heading"><div><span>LIVE RADAR</span><h2>半场有球雷达</h2></div><p>实时跟踪正在进行的比赛，并对上半场剩余时间进行动态判断。</p></section>
+
     <section class="toolbar">
       <div class="segmented"><button :class="{ active: scope === 'first' }" @click="scope = 'first'">上半场</button><button :class="{ active: scope === 'all' }" @click="scope = 'all'">全部进行中</button></div>
       <input v-model="query" type="search" placeholder="搜索联赛或球队" aria-label="搜索联赛或球队">
@@ -37,10 +47,18 @@ watch(autoRefresh, schedule); onMounted(() => { load(); schedule() }); onBeforeU
       <button class="refresh" :disabled="loading" @click="load">{{ loading ? '读取中…' : '立即刷新' }}</button>
     </section>
     <div class="meta"><span><i></i>{{ loading ? '正在同步 Titan' : `显示 ${filtered.length} 场` }}</span><time v-if="fetchedAt">更新于 {{ new Date(fetchedAt).toLocaleTimeString('zh-CN') }}</time></div>
+    <section class="data-scope" aria-label="数据范围说明">
+      <strong>数据范围说明</strong>
+      <ol>
+        <li><b>上半场筛选</b><span>仅显示 Titan 状态码为 1 的比赛；中场、下半场、已结束和未开赛会被排除。当前共 {{ firstHalfMatches.length }} 场。</span></li>
+        <li><b>实时变化</b><span>本次更新于 {{ updatedTime }}；新比赛开场时数量增加，比赛进入中场后数量减少。</span></li>
+        <li><b>盘口完整性</b><span>比赛已读取不等于盘口完整。当前上半场有 {{ firstHalfIncomplete }} 场的源站盘口不完整；青年、后备或低级别赛事可能只有比分和欧赔，未发布的字段显示“—”。</span></li>
+      </ol>
+    </section>
     <div v-if="error" class="notice error"><b>暂时无法读取</b><span>{{ error }}</span><button @click="load">重试</button></div>
     <div v-else-if="!loading && !filtered.length" class="empty"><b>当前筛选下没有比赛</b><span>可切换到“全部进行中”或降低概率门槛。</span></div>
     <section v-else><MatchTable :matches="filtered" /></section>
-    <details class="method"><summary>模型如何判断半场是否还有球？</summary><div><p>基础概率先将半场与全场大小盘水位换算为去除庄家利润后的概率，再以盘口球数估计上半场期望进球，并按剩余时间进行泊松折减。</p><p>额外逐项复核252、253、半场追球和“降盘升水”特征；中高水暂按香港盘≥0.90，“10分钟左右”按6–14分钟。最近20场统计的是该队比赛半场总比分大于0的场次。</p><p>规则徽标：绿色为条件全部命中，黄色为关键字段缺失，灰色为不符合。压力值等Titan未提供的数据不会用其他盘口代替，也不会默认命中。这些是经验规则验证，不代表必然结果。</p></div></details>
+    <details class="method"><summary>模型如何判断半场是否还有球？</summary><div><p>基础概率先将半场与全场大小盘水位换算为去除庄家利润后的概率，再以盘口球数估计上半场期望进球，并按剩余时间进行泊松折减。25分钟前已有进球时，不直接结束判断，而是继续计算上半场剩余时间“再进至少一球”的概率。</p><p>额外逐项复核252、253、半场追球和“降盘升水”特征；中高水暂按香港盘≥0.90，“10分钟左右”按6–14分钟。最近20场统计的是该队比赛半场总比分大于0的场次。</p><p>规则徽标：绿色为条件全部命中，黄色为关键字段缺失，灰色为不符合。压力值等Titan未提供的数据不会用其他盘口代替，也不会默认命中。这些是经验规则验证，不代表必然结果。</p></div></details>
   </main>
   <footer><span>Titan007 公开即时数据</span><span>仅供数据研究，不构成投注建议</span></footer>
 </template>

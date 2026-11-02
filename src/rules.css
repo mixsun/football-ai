@@ -9,6 +9,65 @@
   font-size: 9px;
 }
 
+.verdict.over-sixty {
+  background: #173428;
+  box-shadow: inset 0 0 0 1px #f0cd6266;
+}
+
+.verdict.next-goal {
+  background: #102f30;
+  box-shadow: inset 0 0 0 1px #55d7d088;
+}
+
+.verdict.next-goal.over-sixty {
+  background: linear-gradient(135deg, #102f30, #2c3220);
+  box-shadow: inset 0 0 0 1px #f0cd62aa;
+}
+
+.verdict .probability-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.verdict .probability-value strong {
+  display: inline-block;
+}
+
+.probability-mark,
+.legend-sixty {
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #f0cd62;
+  color: #17251f;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.next-goal-mark,
+.legend-next {
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #55d7d0;
+  color: #082726;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.legend-sixty,
+.legend-next {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
 .rule-badges {
   display: flex;
   justify-content: center;

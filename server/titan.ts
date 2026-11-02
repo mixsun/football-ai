@@ -122,7 +122,7 @@ function elapsedMinute(start: string | null, state: number): number | null {
 async function source(name: string): Promise<string> {
   let response: Response
   try {
-    response = await fetch(`${TITAN}/${name}?r=${Date.now()}`, { headers: HEADERS, signal: AbortSignal.timeout(10_000) })
+    response = await fetch(`${TITAN}/${name}?r=007${Date.now()}`, { headers: HEADERS, signal: AbortSignal.timeout(10_000) })
   } catch {
     throw new Error('无法连接 Titan 即时数据源，请检查网络或稍后重试')
   }
@@ -181,6 +181,14 @@ function remainingHalfMarket(market: Market, currentGoals: number, minute: numbe
 
 function browserExecutable(): string {
   const candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/microsoft-edge',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -191,14 +199,20 @@ function browserExecutable(): string {
 }
 
 async function crowCells(page: Page, url: string): Promise<{ cells: string[]; html: string } | null> {
-  try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 })
-    const crow = page.locator('tr').filter({ hasText: /Crow/i }).first()
-    const fallback = page.locator('tr[id^="oddstr_"], tr:has(td[oddstype="wholeLastOdds"])').first()
-    const row = await crow.count() ? crow : fallback
-    if (!await row.count()) return null
-    return { cells: (await row.locator('td').allTextContents()).map((value) => value.trim()), html: await row.evaluate((element) => element.outerHTML) }
-  } catch { return null }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 })
+      const crow = page.locator('tr').filter({ hasText: /Crow/i }).first()
+      const fallback = page.locator('tr[id^="oddstr_"], tr:has(td[oddstype="wholeLastOdds"])').first()
+      const row = await crow.count() ? crow : fallback
+      if (!await row.count()) return null
+      return { cells: (await row.locator('td').allTextContents()).map((value) => value.trim()), html: await row.evaluate((element) => element.outerHTML) }
+    } catch {
+      if (attempt === 2) return null
+      await page.waitForTimeout(350 * (attempt + 1))
+    }
+  }
+  return null
 }
 
 function detailThreeWay(data: { cells: string[]; html: string } | null): Market | undefined {
@@ -252,16 +266,21 @@ async function fetchHalfGoalHistory(id: number): Promise<HalfGoalHistory | undef
 }
 
 async function loadDetailMarkets(browser: Browser, ids: number[]): Promise<Map<number, DetailMarkets>> {
-  const entries = await Promise.all(ids.map(async (id): Promise<[number, DetailMarkets]> => {
+  const result = new Map<number, DetailMarkets>(); let cursor = 0
+  const workers = Array.from({ length: Math.min(4, ids.length) }, async () => {
     const page = await browser.newPage()
     try {
-      const europe = detailThreeWay(await crowCells(page, `https://1x2.titan007.com/Oddslist/${id}.htm`))
-      const asian = detailTwoWay(await crowCells(page, `https://vip.titan007.com/AsianOdds_n.aspx?id=${id}`), 'asian')
-      const total = detailTwoWay(await crowCells(page, `https://vip.titan007.com/OverDown_n.aspx?id=${id}`), 'total')
-      return [id, { europe, asian, total }]
+      while (cursor < ids.length) {
+        const id = ids[cursor++]
+        const europe = detailThreeWay(await crowCells(page, `https://1x2.titan007.com/Oddslist/${id}.htm`))
+        const asian = detailTwoWay(await crowCells(page, `https://vip.titan007.com/AsianOdds_n.aspx?id=${id}`), 'asian')
+        const total = detailTwoWay(await crowCells(page, `https://vip.titan007.com/OverDown_n.aspx?id=${id}`), 'total')
+        result.set(id, { europe, asian, total })
+      }
     } finally { await page.close() }
-  }))
-  return new Map(entries)
+  })
+  await Promise.all(workers)
+  return result
 }
 
 async function loadHalfGoalHistories(browser: Browser, ids: number[]): Promise<Map<number, HalfGoalHistory>> {
@@ -280,7 +299,7 @@ async function loadHalfGoalHistories(browser: Browser, ids: number[]): Promise<M
   return result
 }
 
-async function getViaBrowser() {
+async function getViaBrowser(requestedIds?: Set<number>) {
   const browser = await chromium.launch({ executablePath: browserExecutable(), headless: true })
   try {
     const page = await browser.newPage()
@@ -298,7 +317,7 @@ async function getViaBrowser() {
       id: Number(f[0]), league: clean(f[2]), home: clean(f[5] || f[4]), away: clean(f[8] || f[7]),
       scheduledAt: '', actualStart: titanDate(f[12]), state: score(f[13]), homeScore: score(f[14]), awayScore: score(f[15]),
       homeHalfScore: score(f[16]), awayHalfScore: score(f[17]),
-    })).filter((m) => Number.isFinite(m.id) && m.state >= 1 && m.state <= 4)
+    })).filter((m) => Number.isFinite(m.id) && m.state >= 1 && m.state <= 4 && (!requestedIds || requestedIds.has(m.id)))
     const details = await loadDetailMarkets(browser, schedules.map((match) => match.id))
     const histories = await loadHalfGoalHistories(browser, schedules.map((match) => match.id))
     const oddsById = new Map(payload.oddsGroups.map((group) => [Number(group.sId), group.oddsList.items]))
@@ -371,9 +390,34 @@ async function getViaDirectFeed() {
 }
 
 export async function getLiveMatches() {
+  let direct: Awaited<ReturnType<typeof getViaDirectFeed>>
   try {
-    return await getViaBrowser()
+    direct = await getViaDirectFeed()
   } catch {
-    return getViaDirectFeed()
+    return getViaBrowser()
+  }
+  const missingIds = new Set(direct.matches.filter((match) => !match.markets).map((match) => match.id))
+  if (!missingIds.size) return direct
+  try {
+    const fallback = await getViaBrowser(missingIds)
+    const supplements = new Map(fallback.matches.map((match) => [match.id, match]))
+    return {
+      ...direct,
+      source: 'Titan007 live public feed + browser supplement',
+      matches: direct.matches.map((match) => {
+        const supplement = supplements.get(match.id)
+        if (!supplement) return match
+        return {
+          ...match,
+          markets: match.markets ?? supplement.markets,
+          goalMinutes: match.goalMinutes.length ? match.goalMinutes : supplement.goalMinutes,
+          goalEvents: match.goalEvents.length ? match.goalEvents : supplement.goalEvents,
+          halfGoalHistory: match.halfGoalHistory ?? supplement.halfGoalHistory,
+          sameMarketCount: match.markets ? match.sameMarketCount : supplement.sameMarketCount,
+        }
+      }),
+    }
+  } catch {
+    return direct
   }
 }

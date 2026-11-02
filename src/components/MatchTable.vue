@@ -39,8 +39,8 @@ const ruleTitle = (row: typeof rows.value[number]) => row.analysis.rules.map((ru
           <td class="score-cell">{{ row.match.homeScore }}-{{ row.match.awayScore }}<small v-if="row.analysis.level === 'done'">有球</small></td>
           <td class="team">{{ row.match.away }}</td>
           <td class="goals"><div class="goal-track"><i v-for="goal in row.match.goalMinutes.filter(m => m <= 45)" :key="goal" :style="{ left: `${Math.min(100, goal / 45 * 100)}%` }">●</i><b>H</b></div><small>{{ row.match.goalMinutes.filter(m => m <= 45).map(m => `${m}′`).join('、') || '暂无' }}</small></td>
-          <td class="verdict" :title="ruleTitle(row)">
-            <strong>{{ row.analysis.probability === null ? '—' : `${row.analysis.probability}%` }}</strong><span>{{ row.analysis.label }}</span>
+          <td class="verdict" :class="{ 'over-sixty': row.analysis.probability !== null && row.analysis.probability > 60, 'next-goal': row.analysis.label.startsWith('下一球') }" :title="ruleTitle(row)">
+            <div class="probability-value"><strong>{{ row.analysis.probability === null ? '—' : `${row.analysis.probability}%` }}</strong><em v-if="row.analysis.label.startsWith('下一球')" class="next-goal-mark">下一球</em><em v-if="row.analysis.probability !== null && row.analysis.probability > 60" class="probability-mark">60%+</em></div><span>{{ row.analysis.label }}</span>
             <div class="rule-badges"><em v-for="rule in row.analysis.rules" :key="rule.code" :class="`rule-${rule.status}`">{{ rule.code }}</em></div>
             <small v-if="row.match.halfGoalHistory?.home.sample">近20场 {{ row.match.halfGoalHistory.home.withGoal }}/{{ row.match.halfGoalHistory.home.sample }}</small>
             <small v-else>历史无样本</small>
@@ -52,6 +52,6 @@ const ruleTitle = (row: typeof rows.value[number]) => row.analysis.rules.map((ru
         </tr>
       </tbody>
     </table>
-    <div class="table-legend"><span>每格：上行为初值，下行为即时值；悬停“半场判断”查看252/253及判断依据</span><span><i class="done"></i>已达成　<i class="high"></i>规则命中　<i class="watch"></i>待验证</span></div>
+    <div class="table-legend"><span>每格：上行为初值，下行为即时值；悬停“半场判断”查看252/253及判断依据</span><span><b class="legend-next">下一球</b>续判　<b class="legend-sixty">60%+</b>重点　<i class="done"></i>已达成　<i class="high"></i>规则命中　<i class="watch"></i>待验证</span></div>
   </div>
 </template>
