@@ -377,6 +377,11 @@ function formatResponse(schedules: Schedule[], odds: Map<number, ParsedOdds>, go
   }
 }
 
+export function capGoalEventsToScore(homeScore: number, awayScore: number, goalMinutes: number[], goalEvents: GoalEvent[]) {
+  const verifiedGoalCount = Math.max(0, homeScore + awayScore)
+  return { goalMinutes: goalMinutes.slice(0, verifiedGoalCount), goalEvents: goalEvents.slice(0, verifiedGoalCount) }
+}
+
 async function getViaDirectFeed() {
   const [scheduleText, oddsText, eventText] = await Promise.all([
     source('bfdata_ut.js'), source('sbOddsData.js'), source('detail_ut.js'),
@@ -396,10 +401,10 @@ export async function getLiveMatches() {
   } catch {
     return getViaBrowser()
   }
-  const missingIds = new Set(direct.matches.filter((match) => !match.markets).map((match) => match.id))
-  if (!missingIds.size) return direct
+  const supplementIds = new Set(direct.matches.filter((match) => !match.markets || (match.state === 1 && (match.minute ?? 0) >= 40) || match.state === 2).map((match) => match.id))
+  if (!supplementIds.size) return direct
   try {
-    const fallback = await getViaBrowser(missingIds)
+    const fallback = await getViaBrowser(supplementIds)
     const supplements = new Map(fallback.matches.map((match) => [match.id, match]))
     return {
       ...direct,
@@ -407,11 +412,22 @@ export async function getLiveMatches() {
       matches: direct.matches.map((match) => {
         const supplement = supplements.get(match.id)
         if (!supplement) return match
+        const lateVerification = (match.state === 1 && (match.minute ?? 0) >= 40) || match.state === 2
+        const supplementHasNewerScore = lateVerification && supplement.homeScore + supplement.awayScore > match.homeScore + match.awayScore
+        const homeScore = supplementHasNewerScore ? supplement.homeScore : match.homeScore
+        const awayScore = supplementHasNewerScore ? supplement.awayScore : match.awayScore
+        const candidateGoalMinutes = match.goalMinutes.length >= supplement.goalMinutes.length ? match.goalMinutes : supplement.goalMinutes
+        const candidateGoalEvents = match.goalEvents.length >= supplement.goalEvents.length ? match.goalEvents : supplement.goalEvents
+        const verifiedGoals = lateVerification ? capGoalEventsToScore(homeScore, awayScore, candidateGoalMinutes, candidateGoalEvents) : { goalMinutes: candidateGoalMinutes, goalEvents: candidateGoalEvents }
         return {
           ...match,
+          homeScore,
+          awayScore,
+          homeHalfScore: supplementHasNewerScore ? supplement.homeHalfScore : match.homeHalfScore,
+          awayHalfScore: supplementHasNewerScore ? supplement.awayHalfScore : match.awayHalfScore,
           markets: match.markets ?? supplement.markets,
-          goalMinutes: match.goalMinutes.length ? match.goalMinutes : supplement.goalMinutes,
-          goalEvents: match.goalEvents.length ? match.goalEvents : supplement.goalEvents,
+          goalMinutes: verifiedGoals.goalMinutes,
+          goalEvents: verifiedGoals.goalEvents,
           halfGoalHistory: match.halfGoalHistory ?? supplement.halfGoalHistory,
           sameMarketCount: match.markets ? match.sameMarketCount : supplement.sameMarketCount,
         }

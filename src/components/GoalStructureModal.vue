@@ -9,6 +9,8 @@ defineEmits<{ close: [] }>()
 const structure = computed(() => buildLiveGoalStructure(props.match))
 const maxWindowProbability = computed(() => Math.max(1, ...structure.value.windows.map((item) => item.probability)))
 const barWidth = (probability: number) => `${Math.max(8, Math.round(probability / maxWindowProbability.value * 100))}%`
+const minuteLabel = (minute: number) => minute <= 45 ? `${minute}′` : `45+${minute - 45}′`
+const windowLabel = (start: number, end: number) => `${minuteLabel(start)}–${minuteLabel(end)}`
 const hotspotStyle = (side: 'home' | 'away', layer: number) => {
   const share = side === 'home' ? structure.value.homeShare : structure.value.awayShare
   const strength = Math.max(.28, Math.min(.92, share / 100 + (structure.value.probability ?? 0) / 220))
@@ -61,7 +63,7 @@ const hotspotStyle = (side: 'home' | 'away', layer: number) => {
         <header><div><b>未来进球发生点</b><small>下一个进球落入各时间窗的无条件概率</small></div><em v-if="structure.peakWindow">峰值 {{ structure.peakWindow.start }}′–{{ structure.peakWindow.end }}′</em></header>
         <div v-if="structure.windows.length" class="future-window-list">
           <div v-for="window in structure.windows" :key="window.start" :class="`window-${window.intensity}`">
-            <span>{{ window.start }}′–{{ window.end }}′</span><i><b :style="{ width: barWidth(window.probability) }" /></i><strong>{{ window.probability }}%</strong>
+            <span>{{ windowLabel(window.start, window.end) }}</span><i><b :style="{ width: barWidth(window.probability) }" /></i><strong>{{ window.probability }}%</strong>
           </div>
         </div>
         <p v-else class="projection-empty">当前数据不足，或上半场常规时间已经结束。</p>

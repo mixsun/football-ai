@@ -17,7 +17,7 @@ describe('buildLiveGoalStructure', () => {
   it('keeps next-goal windows inside the remaining first half', () => {
     const result = buildLiveGoalStructure(match)
     expect(result.windows[0]?.start).toBe(20)
-    expect(result.windows.at(-1)?.end).toBe(45)
+    expect(result.windows.at(-1)?.end).toBe(49)
     expect(result.windows.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(result.probability ?? 0, -1)
   })
 

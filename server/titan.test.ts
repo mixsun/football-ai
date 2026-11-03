@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseAsianLine, parseGoals, parseHalfGoalHistory, parseOdds, parseSchedules, parseTotalLine } from './titan.ts'
+import { capGoalEventsToScore, parseAsianLine, parseGoals, parseHalfGoalHistory, parseOdds, parseSchedules, parseTotalLine } from './titan.ts'
 
 describe('Titan feed parsers', () => {
   it('parses an in-play schedule record', () => {
@@ -16,6 +16,10 @@ describe('Titan feed parsers', () => {
   it('keeps goals and ignores non-goal events', () => {
     const goals = parseGoals(`rq[0]="9^1^1^18";rq[1]="9^1^3^22";`)
     expect(goals.get(9)).toEqual([18])
+  })
+  it('drops a late goal event when the confirmed score remains goalless', () => {
+    expect(capGoalEventsToScore(0, 0, [45], [{ minute: 45, side: 'away' }])).toEqual({ goalMinutes: [], goalEvents: [] })
+    expect(capGoalEventsToScore(0, 1, [45], [{ minute: 45, side: 'away' }]).goalMinutes).toEqual([45])
   })
   it('normalizes Chinese handicap and quarter total lines', () => {
     expect(parseAsianLine('半/一')).toBe(0.75)

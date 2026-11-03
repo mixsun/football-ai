@@ -26,4 +26,9 @@ describe('half goal model', () => {
     expect(result.signals[0]).toContain('已进 2 球')
   })
   it('reduces probability as time runs out', () => expect(analyzeHalfGoal(match(5)).probability!).toBeGreaterThan(analyzeHalfGoal(match(40)).probability!))
+  it('keeps a stoppage-time window after minute 44', () => {
+    const result = analyzeHalfGoal(match(44))
+    expect(result.probability).toBeGreaterThan(4)
+    expect(result.reason).toContain('含预计补时')
+  })
 })

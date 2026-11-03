@@ -1,4 +1,4 @@
-import { analyzeHalfGoal, deVigTwoWay } from './analysis'
+import { analyzeHalfGoal, deVigTwoWay, FIRST_HALF_MODEL_END } from './analysis'
 import type { LiveMatch } from '../types'
 
 export interface FutureGoalWindow {
@@ -58,13 +58,13 @@ function directionShare(match: LiveMatch): [number, number, boolean] {
 }
 
 function futureWindows(minute: number, probability: number | null): FutureGoalWindow[] {
-  if (probability == null || minute >= 45) return []
+  if (probability == null || minute >= FIRST_HALF_MODEL_END) return []
   const p = clamp(probability / 100, 0.01, 0.95)
-  const remaining = Math.max(1, 45 - minute)
+  const remaining = Math.max(1, FIRST_HALF_MODEL_END - minute)
   const rate = -Math.log(1 - p) / remaining
   const windows: FutureGoalWindow[] = []
-  for (let start = minute; start < 45; start += 5) {
-    const end = Math.min(45, start + 5)
+  for (let start = minute; start < FIRST_HALF_MODEL_END; start += 5) {
+    const end = Math.min(FIRST_HALF_MODEL_END, start + 5)
     const elapsedStart = start - minute
     const elapsedEnd = end - minute
     const chance = (Math.exp(-rate * elapsedStart) - Math.exp(-rate * elapsedEnd)) * 100
@@ -79,8 +79,8 @@ function futureWindows(minute: number, probability: number | null): FutureGoalWi
 
 export function buildLiveGoalStructure(match: LiveMatch): LiveGoalStructure {
   const analysis = analyzeHalfGoal(match)
-  const minute = clamp(match.minute ?? 0, 0, 45)
-  const remainingMinutes = Math.max(0, 45 - minute)
+  const minute = clamp(match.minute ?? 0, 0, FIRST_HALF_MODEL_END)
+  const remainingMinutes = Math.max(0, FIRST_HALF_MODEL_END - minute)
   const [homeShare, awayShare, marketReady] = directionShare(match)
   const windows = futureWindows(minute, analysis.probability)
   const peakWindow = windows.reduce<FutureGoalWindow | null>((best, item) => !best || item.probability > best.probability ? item : best, null)
@@ -97,7 +97,7 @@ export function buildLiveGoalStructure(match: LiveMatch): LiveGoalStructure {
   const scoreShape = totalGoals === 0 ? '尚未进球，等待首个破局点' : `${totalGoals}球后进入下一球续判`
   const marketSignal = halfLine == null ? '半场盘口缺失' : `半场剩余盘 ${halfLine.toFixed(2)}；大球去水 ${halfOver == null ? '—' : `${Math.round(halfOver * 100)}%`}`
   const knownFacts = [
-    `当前 ${minute}′，比分 ${match.homeScore}-${match.awayScore}，半场剩余约 ${remainingMinutes} 分钟`,
+    `当前 ${minute}′，比分 ${match.homeScore}-${match.awayScore}，半场剩余约 ${remainingMinutes} 分钟（含预计补时）`,
     match.goalMinutes.filter((goal) => goal <= 45).length ? `已知上半场进球时间：${match.goalMinutes.filter((goal) => goal <= 45).map((goal) => `${goal}′`).join('、')}` : '当前数据未记录上半场进球',
     marketSignal,
   ]
