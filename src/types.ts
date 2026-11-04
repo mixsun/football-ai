@@ -3,6 +3,9 @@ export interface Market { opening: Triple; current: Triple }
 export interface Markets { asian: Market; liveAsian?: Market; europe: Market; total: Market; halfAsian: Market; halfTotal: Market; halfEurope: Market }
 export type GoalSide = 'home' | 'away' | 'unknown'
 export interface GoalEvent { minute: number; side: GoalSide }
+export interface MatchDetailEvent { kind: number; label: string; minute: number; extraMinute: number; side: 'home' | 'away'; player: string; assist: string; note: string }
+export interface MatchDetailStatistic { kind: number; label: string; home: string; away: string; homePercent: number; awayPercent: number }
+export interface MatchDetailResponse { fetchedAt: string; source: string; events: MatchDetailEvent[]; stats: MatchDetailStatistic[] }
 export interface TeamHalfHistory { sample: number; withGoal: number }
 export interface HalfGoalHistory { home: TeamHalfHistory; away: TeamHalfHistory }
 export interface LiveMatch {

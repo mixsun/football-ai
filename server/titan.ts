@@ -17,6 +17,26 @@ type HalfGoalHistory = { home: TeamHalfHistory; away: TeamHalfHistory }
 type GoalEvent = { minute: number; side: 'home' | 'away' | 'unknown' }
 type DetailMarkets = { europe?: Market; asian?: Market; total?: Market; halfGoalHistory?: HalfGoalHistory }
 
+export type MatchDetailEvent = {
+  kind: number
+  label: string
+  minute: number
+  extraMinute: number
+  side: 'home' | 'away'
+  player: string
+  assist: string
+  note: string
+}
+
+export type MatchDetailStatistic = {
+  kind: number
+  label: string
+  home: string
+  away: string
+  homePercent: number
+  awayPercent: number
+}
+
 interface Schedule {
   id: number
   league: string
@@ -42,6 +62,111 @@ const clean = (value: string | undefined) => (value ?? '')
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&')
   .trim()
+
+const EVENT_LABELS: Record<number, string> = {
+  1: '进球', 2: '红牌', 3: '黄牌', 6: '进球无效', 7: '点球', 8: '乌龙球', 9: '两黄变红', 11: '换人', 13: '射失点球', 14: '视频裁判',
+}
+
+const STAT_LABELS = '角球,半场角球,黄牌,红牌,射门,射正,进攻,危险进攻,射门不中,射门被挡,任意球,控球率,半场控球率,传球,传球成功率,犯规,越位,头球,头球成功,救球,铲球,换人数,过人,界外球,中柱,加时角球,加时越位,乌龙球,加时黄牌,守门员出击,丢球,成功抢断,阻截,成功传中,助攻,加时换人,长传,短传,先开球,第一张黄牌,最后一张黄牌,第一个换人,最后一个换人,第一个角球,最后一个角球,第一个越位,最后越位,预期进球(xG),运动战xG,定位球xG,非点球xG,射正xG,得分机会,错失得分机会,禁区内射门,禁区外射门,对方禁区触球,解围,地面对抗成功,争顶成功'.split(',')
+
+function parseJsArrayLiteral(source: string): unknown[] | null {
+  let cursor = 0
+  const skip = () => { while (/\s/.test(source[cursor] ?? '')) cursor++ }
+  const value = (): unknown => {
+    skip()
+    const char = source[cursor]
+    if (char === '[') {
+      cursor++
+      const result: unknown[] = []
+      skip()
+      while (cursor < source.length && source[cursor] !== ']') {
+        result.push(value())
+        skip()
+        if (source[cursor] === ',') { cursor++; skip() } else break
+      }
+      if (source[cursor] !== ']') throw new Error('数组未闭合')
+      cursor++
+      return result
+    }
+    if (char === "'" || char === '"') {
+      const quote = char
+      cursor++
+      let result = ''
+      while (cursor < source.length) {
+        const current = source[cursor++]
+        if (current === quote) return result
+        if (current !== '\\') { result += current; continue }
+        const escaped = source[cursor++]
+        if (escaped === 'n') result += '\n'
+        else if (escaped === 'r') result += '\r'
+        else if (escaped === 't') result += '\t'
+        else if (escaped === 'u') { result += String.fromCharCode(Number.parseInt(source.slice(cursor, cursor + 4), 16)); cursor += 4 }
+        else if (escaped === 'x') { result += String.fromCharCode(Number.parseInt(source.slice(cursor, cursor + 2), 16)); cursor += 2 }
+        else result += escaped
+      }
+      throw new Error('字符串未闭合')
+    }
+    const start = cursor
+    while (cursor < source.length && !/[\s,\]]/.test(source[cursor])) cursor++
+    const token = source.slice(start, cursor)
+    if (token === 'null' || token === 'undefined' || token === '') return null
+    if (token === 'true') return true
+    if (token === 'false') return false
+    const parsed = Number(token)
+    return Number.isFinite(parsed) ? parsed : token
+  }
+  try {
+    const parsed = value()
+    return Array.isArray(parsed) ? parsed : null
+  } catch { return null }
+}
+
+function assignmentArray(source: string, name: string, id: number): unknown[] {
+  const marker = `${name}[${id}]=`
+  const start = source.indexOf(marker)
+  if (start < 0) return []
+  const arrayStart = source.indexOf('[', start + marker.length)
+  if (arrayStart < 0) return []
+  let depth = 0; let quote = ''; let escaped = false
+  for (let index = arrayStart; index < source.length; index++) {
+    const char = source[index]
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+    if (char === "'" || char === '"') { quote = char; continue }
+    if (char === '[') depth++
+    if (char === ']' && --depth === 0) return parseJsArrayLiteral(source.slice(arrayStart, index + 1)) ?? []
+  }
+  return []
+}
+
+const localized = (value: unknown) => clean(String(value ?? '').split('^')[0])
+
+export function parseMatchDetail(source: string, id: number) {
+  const rawEvents = assignmentArray(source, 'd_f', id)
+  const rawStats = assignmentArray(source, 'tT_f', id)
+  const events: MatchDetailEvent[] = rawEvents.filter(Array.isArray).map((row): MatchDetailEvent => ({
+    kind: Number(row[0]), label: EVENT_LABELS[Number(row[0])] ?? '比赛事件', minute: Number(row[1]) || 0,
+    extraMinute: Number(row[8]) || 0, side: Number(row[5]) === 1 ? 'home' : 'away',
+    player: localized(row[6]), assist: localized(row[7]), note: localized(row[9]),
+  })).filter((event) => event.minute >= 0).sort((a, b) => a.minute + a.extraMinute / 100 - b.minute - b.extraMinute / 100)
+  const stats: MatchDetailStatistic[] = rawStats.filter(Array.isArray).map((row): MatchDetailStatistic => ({
+    kind: Number(row[0]), label: STAT_LABELS[Number(row[0])] ?? `指标${row[0]}`,
+    home: clean(String(row[1] ?? '—')) || '—', away: clean(String(row[2] ?? '—')) || '—',
+    homePercent: Math.max(0, Math.min(100, Number(row[3]) || 0)), awayPercent: Math.max(0, Math.min(100, Number(row[4]) || 0)),
+  })).filter((stat) => Number.isFinite(stat.kind))
+  return { events, stats }
+}
+
+export async function getMatchDetail(id: number) {
+  if (!Number.isInteger(id) || id <= 0) throw new Error('比赛编号无效')
+  const response = await fetch(`${TITAN}/detailin.js?r=007${Date.now()}&id=${id}`, { headers: HEADERS, signal: AbortSignal.timeout(10_000) })
+  if (!response.ok) throw new Error(`Titan 比赛详情返回 ${response.status}`)
+  return { fetchedAt: new Date().toISOString(), source: 'Titan007 实时比赛详情', ...parseMatchDetail(await response.text(), id) }
+}
 
 function titanDate(raw: string | undefined): string | null {
   if (!raw) return null

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildLiveGoalStructure } from './live-goal-structure'
-import type { LiveMatch, Market, Markets } from '../types'
+import { buildLiveGoalStructure, buildRealtimePressure } from './live-goal-structure'
+import type { LiveMatch, Market, Markets, MatchDetailResponse } from '../types'
 
 const market = (left: number, line: number, right: number): Market => ({ opening: { left, line, right }, current: { left, line, right } })
 const markets: Markets = {
@@ -14,11 +14,10 @@ const match: LiveMatch = {
 }
 
 describe('buildLiveGoalStructure', () => {
-  it('keeps next-goal windows inside the remaining first half', () => {
+  it('keeps the remaining first-half duration available for the summary', () => {
     const result = buildLiveGoalStructure(match)
-    expect(result.windows[0]?.start).toBe(20)
-    expect(result.windows.at(-1)?.end).toBe(49)
-    expect(result.windows.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(result.probability ?? 0, -1)
+    expect(result.remainingMinutes).toBe(29)
+    expect(result.probability).not.toBeNull()
   })
 
   it('uses market strength and trailing urgency without claiming shot coordinates', () => {
@@ -26,7 +25,42 @@ describe('buildLiveGoalStructure', () => {
     expect(result.homeShare).toBeGreaterThan(result.awayShare)
     expect(result.homePressure).toBeGreaterThan(result.awayPressure)
     expect(result.homePressure).toBeLessThanOrEqual(100)
+    expect(result.pressureTimeline.at(-1)).toMatchObject({ minute: 20, home: result.homePressure, away: result.awayPressure })
+    expect(result.pressureIndicators).toHaveLength(3)
+    expect(result.marketCoverage).toBe(6)
+    expect(result.homeHistoryRate).toBe(70)
     expect(result.limitations.join(' ')).toContain('不是真实射门或触球坐标')
     expect(result.confidence).toBe('较高')
+  })
+})
+
+describe('buildRealtimePressure', () => {
+  const detail: MatchDetailResponse = {
+    fetchedAt: '',
+    source: 'test',
+    events: [],
+    stats: [
+      { kind: 5, label: '射正', home: '4', away: '1', homePercent: 80, awayPercent: 20 },
+      { kind: 4, label: '射门', home: '8', away: '4', homePercent: 67, awayPercent: 33 },
+      { kind: 7, label: '危险进攻', home: '24', away: '12', homePercent: 67, awayPercent: 33 },
+      { kind: 0, label: '角球', home: '3', away: '1', homePercent: 75, awayPercent: 25 },
+      { kind: 6, label: '进攻', home: '40', away: '30', homePercent: 57, awayPercent: 43 },
+    ],
+  }
+
+  it('uses source statistics and recalculates after red-card and penalty events', () => {
+    const base = buildRealtimePressure(match, detail)
+    const adjusted = buildRealtimePressure(match, {
+      ...detail,
+      events: [
+        { kind: 2, label: '红牌', minute: 15, extraMinute: 0, side: 'home', player: '', assist: '', note: '' },
+        { kind: 7, label: '点球', minute: 18, extraMinute: 0, side: 'away', player: '', assist: '', note: '' },
+      ],
+    })
+
+    expect(base.available).toBe(true)
+    expect(base.home).toBeGreaterThan(base.away ?? 0)
+    expect(adjusted.home).toBeLessThan(base.home ?? 0)
+    expect(adjusted.away).toBeGreaterThan(base.away ?? 0)
   })
 })

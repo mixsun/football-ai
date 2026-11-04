@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capGoalEventsToScore, parseAsianLine, parseGoals, parseHalfGoalHistory, parseOdds, parseSchedules, parseTotalLine } from './titan.ts'
+import { capGoalEventsToScore, parseAsianLine, parseGoals, parseHalfGoalHistory, parseMatchDetail, parseOdds, parseSchedules, parseTotalLine } from './titan.ts'
 
 describe('Titan feed parsers', () => {
   it('parses an in-play schedule record', () => {
@@ -33,5 +33,12 @@ describe('Titan feed parsers', () => {
     expect(history?.away.sample).toBe(12)
     expect(history?.home.withGoal).toBe(8)
     expect(history?.away.withGoal).toBe(8)
+  })
+  it('parses live detail events, assists and technical statistics without evaluating source code', () => {
+    const source = `var d_f=new Object();d_f[9]=[[1,6,10,1,2,1,'射手^Scorer','助攻者^Assist',0,'',''],[3,27,11,3,0,2,'客队球员^Away','',0,'','']];var tT_f=new Object();tT_f[9]=[[4,'6','8',43,57],[5,'4','3',57,43],[11,'45%','55%',45,55]];`
+    const detail = parseMatchDetail(source, 9)
+    expect(detail.events[0]).toMatchObject({ label: '进球', minute: 6, side: 'home', player: '射手', assist: '助攻者' })
+    expect(detail.events[1]).toMatchObject({ label: '黄牌', side: 'away' })
+    expect(detail.stats).toEqual(expect.arrayContaining([expect.objectContaining({ label: '射门', home: '6', away: '8' }), expect.objectContaining({ label: '控球率' })]))
   })
 })

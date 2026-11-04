@@ -44,7 +44,7 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeTip); documen
         <tr class="group-head">
           <th rowspan="2">序</th><th rowspan="2">赛事</th><th rowspan="2">比赛时间</th><th rowspan="2">状态</th>
           <th rowspan="2">主队</th><th rowspan="2">比分</th><th rowspan="2">客队</th><th rowspan="2">进球时间</th>
-          <th rowspan="2">半场判断</th><th rowspan="2">类似盘数</th><th colspan="3">欧赔</th><th colspan="3">亚盘</th><th colspan="3">半场剩余估值</th>
+          <th rowspan="2" title="按概率从高到低排列">半场判断 ↓</th><th rowspan="2">类似盘数</th><th colspan="3">欧赔</th><th colspan="3">亚盘</th><th colspan="3">半场剩余估值</th>
         </tr>
         <tr><th>主胜</th><th>和局</th><th>客胜</th><th>主水</th><th>让球</th><th>客水</th><th>大</th><th>半场</th><th>小</th></tr>
       </thead>

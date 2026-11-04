@@ -1,15 +1,16 @@
 import { defineConfig, type Connect, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { getLiveMatches } from './server/titan'
+import { getLiveMatches, getMatchDetail } from './server/titan'
 
 function apiHandler(): Connect.NextHandleFunction {
   return async (req, res, next) => {
-    if (!req.url?.startsWith('/live')) return next()
+    const detail = req.url?.match(/^\/detail\/(\d+)/)
+    if (!req.url?.startsWith('/live') && !detail) return next()
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.setHeader('Cache-Control', 'no-store')
     try {
       res.statusCode = 200
-      res.end(JSON.stringify(await getLiveMatches()))
+      res.end(JSON.stringify(detail ? await getMatchDetail(Number(detail[1])) : await getLiveMatches()))
     } catch (error) {
       res.statusCode = 502
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Titan 数据获取失败' }))
