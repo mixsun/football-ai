@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { buildLiveGoalStructure, buildRealtimePressure } from '../lib/live-goal-structure'
-import type { LiveMatch, MatchDetailResponse } from '../types'
+import type { LiveMatch, Market, MatchDetailResponse, Triple } from '../types'
+import goalBallIcon from '../goal-ball.png'
 
 const props = defineProps<{ match: LiveMatch }>()
 defineEmits<{ close: [] }>()
@@ -78,6 +79,50 @@ const pressureGoalMarkers = computed(() => pressureGoalSource.value.map((goal) =
   const point = pressureTrend.value.reduce((nearest, item) => Math.abs(item.minute - goal.chartMinute) < Math.abs(nearest.minute - goal.chartMinute) ? item : nearest)
   return { ...goal, x: chartX(goal.chartMinute), y: chartY(point[goal.side]) }
 }))
+const possessionSide = computed(() => structure.value.favoredSide === 'balanced'
+  ? (pressureValue('home') >= pressureValue('away') ? 'home' : 'away')
+  : structure.value.favoredSide)
+const possessionTeam = computed(() => possessionSide.value === 'home' ? props.match.home : props.match.away)
+const possessionShare = computed(() => possessionSide.value === 'home' ? structure.value.homeShare : structure.value.awayShare)
+const pitchEvents = computed(() => (matchDetail.value?.events ?? [])
+  .filter((event) => event.minute <= 45)
+  .map((event) => ({
+    ...event,
+    displayMinute: event.minute + event.extraMinute,
+    timeLabel: `${event.minute}${event.extraMinute ? `+${event.extraMinute}` : ''}′`,
+    eventClass: [1, 8].includes(event.kind) ? 'goal' : [2, 9].includes(event.kind) ? 'red-card' : event.kind === 3 ? 'yellow-card' : [7, 13].includes(event.kind) ? 'penalty' : 'other',
+  }))
+  .sort((left, right) => left.displayMinute - right.displayMinute))
+const pitchPointEvents = computed(() => pitchEvents.value.map((event, index) => {
+  const attackingProgress = Math.min(1, Math.max(0, event.displayMinute / Math.max(1, matchMinute.value || 45)))
+  const finalThirdX = 64 + attackingProgress * 23
+  const x = event.side === 'home' ? finalThirdX : 100 - finalThirdX
+  const y = 18 + ((event.minute * 29 + event.kind * 17 + index * 23) % 65)
+  return { ...event, x, y }
+}))
+const pointStyle = (event: { x: number; y: number }) => ({ left: `${event.x}%`, top: `${event.y}%` })
+const eventPosition = (minute: number) => `${Math.max(1.5, Math.min(98.5, minute / 45 * 100))}%`
+const indexText = (value: number | null) => value == null ? '—' : Number.isInteger(value) ? String(value) : value.toFixed(2)
+const marketValues = (market: Market | undefined, state: 'opening' | 'current') => {
+  const value: Triple | undefined = market?.[state]
+  return [indexText(value?.left ?? null), indexText(value?.line ?? null), indexText(value?.right ?? null)]
+}
+const liveIndexRows = computed(() => {
+  const markets = props.match.markets
+  return [
+    { label: '全场亚盘', market: markets?.liveAsian ?? markets?.asian },
+    { label: '全场大小', market: markets?.total },
+    { label: '半场剩余', market: markets?.halfTotal },
+  ].map((item) => ({ ...item, opening: marketValues(item.market, 'opening'), current: marketValues(item.market, 'current') }))
+})
+const historyRate = (side: 'home' | 'away') => {
+  const history = props.match.halfGoalHistory?.[side]
+  return history?.sample ? `${Math.round(history.withGoal / history.sample * 100)}%` : '—'
+}
+const scoringRows = computed(() => [
+  { side: 'home', team: props.match.home, scored: props.match.homeScore, conceded: props.match.awayScore, history: historyRate('home') },
+  { side: 'away', team: props.match.away, scored: props.match.awayScore, conceded: props.match.homeScore, history: historyRate('away') },
+])
 </script>
 
 <template>
@@ -142,17 +187,66 @@ const pressureGoalMarkers = computed(() => pressureGoalSource.value.map((goal) =
         </div>
       </section>
 
-      <section class="goal-structure-section heatmap-section">
-        <header><div><b>球权活动位置热力图</b><small>颜色覆盖的是连续活动区域，不对应固定点位</small></div><em>位置推演</em></header>
-        <div class="pitch-heatmap" :class="`favored-${structure.favoredSide}`">
-              <div class="pitch-lines"><i class="halfway"></i><i class="center-circle"></i><i class="home-box"></i><i class="away-box"></i><i class="home-goal"></i><i class="away-goal"></i></div>
-              <span class="heat-field heat-field-home" :style="{ opacity: String(Math.max(.3, structure.homeShare / 100)) }" />
-              <span class="heat-field heat-field-away" :style="{ opacity: String(Math.max(.3, structure.awayShare / 100)) }" />
-              <span class="heat-field heat-field-transition" :style="{ opacity: structure.favoredSide === 'balanced' ? '.7' : '.42' }" />
+      <section class="goal-structure-section possession-section">
+        <header><div><b>即时球权活动图</b><small>结合实时压力、比分与事件推演当前推进方向</small></div><em>方向示意</em></header>
+        <div class="possession-board-grid">
+          <aside class="live-index-panel" aria-label="即时指数">
+            <h4><span>即时指数</span><small>初盘 / 即时</small></h4>
+            <div class="index-column-head"><span>类型</span><span>主/大</span><span>盘口</span><span>客/小</span></div>
+            <div v-for="row in liveIndexRows" :key="row.label" class="live-index-row">
+              <b>{{ row.label }}</b>
+              <div><small>初</small><span v-for="(value, index) in row.opening" :key="`open-${row.label}-${index}`">{{ value }}</span></div>
+              <div><small>即</small><strong v-for="(value, index) in row.current" :key="`current-${row.label}-${index}`">{{ value }}</strong></div>
+            </div>
+          </aside>
+
+          <div class="possession-center">
+            <div class="possession-pitch" :class="`control-${possessionSide}`" role="img" :aria-label="`${possessionTeam}当前控球攻势占优，估算占比${possessionShare}%`">
+              <div class="pitch-lines"><i class="halfway"></i><i class="center-circle"></i><i class="center-spot"></i><i class="home-box"></i><i class="away-box"></i><i class="home-goal-box"></i><i class="away-goal-box"></i><i class="home-goal"></i><i class="away-goal"></i></div>
+              <div class="control-zone" aria-hidden="true"></div>
               <div class="pitch-team pitch-home"><b>{{ match.home }}</b><small>向右进攻 →</small></div>
               <div class="pitch-team pitch-away-label"><b>{{ match.away }}</b><small>← 向左进攻</small></div>
+              <div class="pitch-point-layer" aria-label="已记录比赛事件点位">
+                <div v-for="(event, index) in pitchPointEvents" :key="`point-${event.kind}-${event.displayMinute}-${index}`" class="pitch-event-point" :class="[`point-${event.side}`, `point-${event.eventClass}`]" :style="pointStyle(event)" tabindex="0" role="img" :aria-label="`${event.timeLabel} ${event.side === 'home' ? match.home : match.away} ${event.label}，点位为方向示意`">
+                  <img v-if="event.eventClass === 'goal'" :src="goalBallIcon" alt="">
+                  <i v-else aria-hidden="true"></i>
+                  <span>{{ event.timeLabel }} · {{ event.label }}<small v-if="event.player">{{ event.player }}</small></span>
+                </div>
+                <p v-if="!pitchPointEvents.length">源站暂未记录可显示的比赛事件点位</p>
+              </div>
+              <div class="possession-callout">
+                <span class="possession-ball" aria-hidden="true"></span>
+                <div><b>{{ possessionTeam }}</b><strong>控球 · 攻势占优</strong><small>{{ possessionShare }}% 方向权重</small></div>
+              </div>
+            </div>
+            <div class="match-event-timeline" aria-label="上半场比赛事件时间轴">
+              <div class="timeline-scale"><span>0′</span><span>15′</span><span>30′</span><span>HT</span></div>
+              <div class="timeline-track">
+                <i v-for="segment in 15" :key="segment"></i>
+                <div v-for="(event, index) in pitchEvents" :key="`${event.kind}-${event.displayMinute}-${index}`" class="timeline-event" :class="[`event-${event.side}`, `event-${event.eventClass}`]" :style="{ left: eventPosition(event.displayMinute) }">
+                  <img v-if="event.eventClass === 'goal'" :src="goalBallIcon" alt="">
+                  <span v-else aria-hidden="true"></span>
+                  <small>{{ event.timeLabel }} · {{ event.label }}</small>
+                </div>
+                <div v-if="!pitchEvents.length" class="timeline-empty">源站暂未提供比赛事件</div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="scoring-panel" aria-label="本场进球与失球">
+            <h4><span>本场进球 / 失球</span><small>实时比分</small></h4>
+            <div class="scoring-head"><span>球队</span><span>进球</span><span>失球</span></div>
+            <div v-for="row in scoringRows" :key="row.side" class="scoring-row" :class="`scoring-${row.side}`">
+              <b><i></i>{{ row.team }}</b><strong>{{ row.scored }}</strong><strong>{{ row.conceded }}</strong>
+            </div>
+            <div class="history-rate-head"><span>近场半场有球率</span><small>源站样本</small></div>
+            <div v-for="row in scoringRows" :key="`history-${row.side}`" class="history-rate-row">
+              <span>{{ row.team }}</span><b>{{ row.history }}</b>
+            </div>
+            <p>分时段进失球率：源站暂无可靠数据</p>
+          </aside>
         </div>
-        <div class="heat-legend"><span><i class="home"></i>主队进攻侧球权热点</span><span><i class="away"></i>客队进攻侧球权热点</span><span><i class="mix"></i>中场转换区</span></div>
+        <div class="possession-legend"><span><i class="home"></i>{{ match.home }}记录点</span><span><i class="away"></i>{{ match.away }}记录点</span><span><i class="event"></i>进球 / 事件</span><small>源站未提供 x/y 坐标；点位按球队方向与事件时间排布，不代表真实射门落点。</small></div>
       </section>
 
       <footer class="goal-modal-notes">

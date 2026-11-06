@@ -15,6 +15,14 @@ type BrowserOddsGroup = { sId: string; oddsList: { items: BrowserOddsItem[] } }
 type TeamHalfHistory = { sample: number; withGoal: number }
 type HalfGoalHistory = { home: TeamHalfHistory; away: TeamHalfHistory }
 type GoalEvent = { minute: number; side: 'home' | 'away' | 'unknown' }
+type TechnicalStatPair = { home: number | null; away: number | null }
+type TechnicalStats = {
+  shots: TechnicalStatPair
+  shotsOnTarget: TechnicalStatPair
+  possession: TechnicalStatPair
+  dangerousAttacks: TechnicalStatPair
+}
+type MatchDetail = { goalEvents: GoalEvent[]; technicalStats?: TechnicalStats }
 type DetailMarkets = { europe?: Market; asian?: Market; total?: Market; halfGoalHistory?: HalfGoalHistory }
 
 export type MatchDetailEvent = {
@@ -223,16 +231,75 @@ export function parseOdds(source: string): Map<number, ParsedOdds> {
   return result
 }
 
-export function parseGoals(source: string): Map<number, number[]> {
+export function parseGoalRows(rows: string[]): Map<number, number[]> {
   const result = new Map<number, number[]>()
-  for (const match of source.matchAll(/rq\[\d+\]="([\s\S]*?)";/g)) {
-    const f = match[1].split('^')
+  for (const row of rows) {
+    const f = row.split('^')
     if (f[2] !== '1') continue
     const id = Number(f[0]); const minute = Number.parseInt(f[3], 10)
     if (!Number.isFinite(id) || !Number.isFinite(minute)) continue
     result.set(id, [...(result.get(id) ?? []), minute])
   }
   return result
+}
+
+export function parseGoals(source: string): Map<number, number[]> {
+  return parseGoalRows([...source.matchAll(/rq\[\d+\]="([\s\S]*?)";/g)].map((match) => match[1]))
+}
+
+export function parseDetailGoalEvents(source: string): GoalEvent[] {
+  const eventList = source.match(/<ul\b[^>]*\bid=["']teamEventDiv["'][^>]*>([\s\S]*?)<\/ul>/i)?.[1] ?? ''
+  const events: GoalEvent[] = []
+  for (const row of eventList.matchAll(/<li\b[^>]*\bclass=["'][^"']*\blists\b[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi)) {
+    const html = row[1]
+    const icon = html.match(/<img\b[^>]*(?:title=["'](?:入球|点球|乌龙)["']|src=["'][^"']*\/bf_img2\/(?:1|7|8)\.png[^"']*["'])[^>]*>/i)
+    const time = html.match(/(\d{1,3})(?:\s*\+\s*(\d{1,2}))?\s*['′]/)
+    if (!icon || !time || icon.index === undefined || time.index === undefined) continue
+    const minute = Number(time[1]) + Number(time[2] ?? 0)
+    if (!Number.isFinite(minute)) continue
+    events.push({ minute, side: icon.index < time.index ? 'home' : 'away' })
+  }
+  return events
+}
+
+export function parseTechnicalStats(source: string): TechnicalStats | undefined {
+  const spanValues = [...source.matchAll(/<span\b[^>]*>([\s\S]*?)<\/span>/gi)]
+    .map((match) => clean(match[1]).replace(/\s+/g, ' '))
+  const barRows = [...source.matchAll(/<div\b[^>]*\bclass=["'][^"']*\bbarbox\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)]
+    .map((match) => ({
+      label: clean(match[1].match(/<span\b[^>]*\bclass=["'][^"']*\bdata\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i)?.[1]),
+      values: [...match[1].matchAll(/<span\b[^>]*\bclass=["'][^"']*\bvalue\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)]
+        .map((valueMatch) => clean(valueMatch[1])),
+    }))
+  const dataRows = [...source.matchAll(/<div\b[^>]*\bclass=["'][^"']*\bdata\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)]
+    .map((match) => [...match[1].matchAll(/<span\b[^>]*>([\s\S]*?)<\/span>/gi)].map((spanMatch) => clean(spanMatch[1])))
+  const aliases: Record<keyof TechnicalStats, string[]> = {
+    shots: ['射门'],
+    shotsOnTarget: ['射正'],
+    possession: ['控球率', '控球时间'],
+    dangerousAttacks: ['危险进攻'],
+  }
+  const result = {} as TechnicalStats
+  let found = false
+  const value = (raw: string | undefined) => {
+    const parsed = Number.parseFloat((raw ?? '').replace('%', ''))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  for (const [key, labels] of Object.entries(aliases) as [keyof TechnicalStats, string[]][]) {
+    const barRow = barRows.find((row) => labels.includes(row.label) && row.values.length >= 2)
+    const dataRow = dataRows.find((row) => row.length >= 3 && labels.includes(row[1]))
+    const index = spanValues.findIndex((text) => labels.includes(text))
+    const pair = barRow
+      ? { home: value(barRow.values[0]), away: value(barRow.values.at(-1)) }
+      : dataRow
+        ? { home: value(dataRow[0]), away: value(dataRow.at(-1)) }
+      : index > 0
+        ? { home: value(spanValues[index - 1]), away: value(spanValues[index + 1]) }
+        : { home: null, away: null }
+    result[key] = pair
+    if (pair.home !== null || pair.away !== null) found = true
+  }
+  return found ? result : undefined
 }
 
 function elapsedMinute(start: string | null, state: number): number | null {
@@ -424,6 +491,31 @@ async function loadHalfGoalHistories(browser: Browser, ids: number[]): Promise<M
   return result
 }
 
+async function loadMatchDetails(browser: Browser, ids: number[]): Promise<Map<number, MatchDetail>> {
+  const result = new Map<number, MatchDetail>(); let cursor = 0
+  const workers = Array.from({ length: Math.min(2, ids.length) }, async () => {
+    const page = await browser.newPage()
+    try {
+      while (cursor < ids.length) {
+        const id = ids[cursor++]
+        try {
+          await page.goto(`https://live.titan007.com/detail/${id}cn.htm`, { waitUntil: 'networkidle', timeout: 20_000 })
+          await page.locator('#teamEventDiv li.lists').first().waitFor({ state: 'attached', timeout: 8_000 }).catch(() => undefined)
+          await page.locator('#teamTechDiv_detail .data').filter({ hasText: '射正' }).first().waitFor({ state: 'attached', timeout: 6_000 }).catch(() => undefined)
+          await page.locator('#teamTechDiv_detail .barbox').filter({ hasText: /控球率|危险进攻/ }).first().waitFor({ state: 'attached', timeout: 6_000 }).catch(() => undefined)
+          await page.waitForTimeout(1_500)
+          const html = await page.content()
+          const goalEvents = parseDetailGoalEvents(html)
+          const technicalStats = parseTechnicalStats(html)
+          if (goalEvents.length || technicalStats) result.set(id, { goalEvents, technicalStats })
+        } catch { /* The panel will show the source-missing state for this match. */ }
+      }
+    } finally { await page.close() }
+  })
+  await Promise.all(workers)
+  return result
+}
+
 async function getViaBrowser(requestedIds?: Set<number>) {
   const browser = await chromium.launch({ executablePath: browserExecutable(), headless: true })
   try {
@@ -431,12 +523,18 @@ async function getViaBrowser(requestedIds?: Set<number>) {
     await page.goto('https://live.titan007.com/', { waitUntil: 'domcontentloaded', timeout: 30_000 })
     await page.waitForSelector('#table_live tr[id^="tr1_"]', { state: 'attached', timeout: 30_000 })
     await page.evaluate(() => (window as unknown as { loadBfOdds: () => void }).loadBfOdds())
+    await page.addScriptTag({ url: `${TITAN}/detail_ut.js?r=${Date.now()}` }).catch(() => undefined)
     const payload = await page.evaluate(() => {
       const w = window as unknown as {
         A: string[][]
         flashData: { bfOddsList: { items: BrowserOddsGroup[] } }
+        rq?: Record<string, string> | string[]
       }
-      return { schedules: w.A.slice(1), oddsGroups: w.flashData.bfOddsList.items }
+      return {
+        schedules: w.A.slice(1),
+        oddsGroups: w.flashData.bfOddsList.items,
+        goalRows: Object.values(w.rq ?? {}).filter((row): row is string => typeof row === 'string'),
+      }
     })
     const schedules: Schedule[] = payload.schedules.map((f) => ({
       id: Number(f[0]), league: clean(f[2]), home: clean(f[5] || f[4]), away: clean(f[8] || f[7]),
@@ -445,7 +543,9 @@ async function getViaBrowser(requestedIds?: Set<number>) {
     })).filter((m) => Number.isFinite(m.id) && m.state >= 1 && m.state <= 4 && (!requestedIds || requestedIds.has(m.id)))
     const details = await loadDetailMarkets(browser, schedules.map((match) => match.id))
     const histories = await loadHalfGoalHistories(browser, schedules.map((match) => match.id))
+    const matchDetails = await loadMatchDetails(browser, schedules.map((match) => match.id))
     const oddsById = new Map(payload.oddsGroups.map((group) => [Number(group.sId), group.oddsList.items]))
+    const feedGoals = parseGoalRows(payload.goalRows)
     const odds = new Map<number, ParsedOdds>()
     const goals = new Map<number, number[]>()
     const goalEvents = new Map<number, GoalEvent[]>()
@@ -461,26 +561,21 @@ async function getViaBrowser(requestedIds?: Set<number>) {
       const liveTotal = browserMarket(latest, 'total')
       const halfTotal = remainingHalfMarket(liveTotal.current.line === null ? total : liveTotal, match.homeScore + match.awayScore, minute)
       odds.set(match.id, { asian, liveAsian, total, halfAsian: emptyMarket(), halfTotal, europe: detail?.europe ?? emptyMarket(), halfEurope: emptyMarket() })
-      let previousHome = 0; let previousAway = 0
-      for (const item of live) {
-        const home = Number(item.homeScore ?? 0); const away = Number(item.guestScore ?? 0)
-        const eventMinute = Number.parseInt(clean(String(item.stateInfo ?? '')), 10)
-        if (Number.isFinite(eventMinute)) {
-          const events = goalEvents.get(match.id) ?? []
-          for (let n = previousHome; n < home; n++) events.push({ minute: eventMinute, side: 'home' })
-          for (let n = previousAway; n < away; n++) events.push({ minute: eventMinute, side: 'away' })
-          if (events.length) { goalEvents.set(match.id, events); goals.set(match.id, events.map((event) => event.minute)) }
-        }
-        previousHome = Math.max(previousHome, home); previousAway = Math.max(previousAway, away)
+      const events = matchDetails.get(match.id)?.goalEvents ?? []
+      if (events.length) {
+        goalEvents.set(match.id, events)
+        goals.set(match.id, events.map((event) => event.minute))
       }
+      const loadedMinutes = feedGoals.get(match.id) ?? []
+      if (loadedMinutes.length > (goals.get(match.id)?.length ?? 0)) goals.set(match.id, loadedMinutes)
     }
-    return formatResponse(schedules, odds, goals, 'Titan007 browser fallback', goalEvents, histories)
+    return formatResponse(schedules, odds, goals, 'Titan007 browser fallback', goalEvents, histories, matchDetails)
   } finally {
     await browser.close()
   }
 }
 
-function formatResponse(schedules: Schedule[], odds: Map<number, ParsedOdds>, goals: Map<number, number[]>, sourceName: string, goalEvents = new Map<number, GoalEvent[]>(), histories = new Map<number, HalfGoalHistory>()) {
+function formatResponse(schedules: Schedule[], odds: Map<number, ParsedOdds>, goals: Map<number, number[]>, sourceName: string, goalEvents = new Map<number, GoalEvent[]>(), histories = new Map<number, HalfGoalHistory>(), details = new Map<number, MatchDetail>()) {
   const groupCounts = new Map<string, number>()
   const key = (m: Schedule) => {
     const o = odds.get(m.id)
@@ -496,6 +591,7 @@ function formatResponse(schedules: Schedule[], odds: Map<number, ParsedOdds>, go
       goalMinutes: (goals.get(m.id) ?? []).sort((a, b) => a - b),
       goalEvents: (goalEvents.get(m.id) ?? []).sort((a, b) => a.minute - b.minute),
       halfGoalHistory: histories.get(m.id),
+      technicalStats: details.get(m.id)?.technicalStats,
       markets: odds.get(m.id) ?? null,
       sameMarketCount: groupCounts.get(key(m)) ?? 1,
     })),
@@ -526,7 +622,7 @@ export async function getLiveMatches() {
   } catch {
     return getViaBrowser()
   }
-  const supplementIds = new Set(direct.matches.filter((match) => !match.markets || (match.state === 1 && (match.minute ?? 0) >= 40) || match.state === 2).map((match) => match.id))
+  const supplementIds = new Set(direct.matches.filter((match) => match.state === 1 || match.state === 2).map((match) => match.id))
   if (!supplementIds.size) return direct
   try {
     const fallback = await getViaBrowser(supplementIds)
@@ -554,6 +650,7 @@ export async function getLiveMatches() {
           goalMinutes: verifiedGoals.goalMinutes,
           goalEvents: verifiedGoals.goalEvents,
           halfGoalHistory: match.halfGoalHistory ?? supplement.halfGoalHistory,
+          technicalStats: supplement.technicalStats ?? match.technicalStats,
           sameMarketCount: match.markets ? match.sameMarketCount : supplement.sameMarketCount,
         }
       }),

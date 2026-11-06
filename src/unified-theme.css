@@ -1,0 +1,308 @@
+:root {
+  --color-primary: #0f766e;
+  --color-on-primary: #ffffff;
+  --color-secondary: #14b8a6;
+  --color-accent: #2563eb;
+  --color-background: #f0fdfa;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f5fbfa;
+  --color-foreground: #134e4a;
+  --color-muted: #527570;
+  --color-muted-soft: #76928e;
+  --color-border: #ccece7;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-ring: #0f766e;
+  --series-home: #e11d48;
+  --series-away: #2563eb;
+  --green: var(--color-primary);
+  --mint: #ccfbf1;
+  --panel: var(--color-surface);
+  --line: var(--color-border);
+  --care: var(--color-primary);
+  --ink: var(--color-foreground);
+  --muted: var(--color-muted);
+}
+
+html,
+body,
+#app {
+  color: var(--color-foreground);
+  background: var(--color-background);
+}
+
+body {
+  background-image: radial-gradient(circle at 82% 6%, rgba(20, 184, 166, .1), transparent 28rem);
+}
+
+.topbar {
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 6px 24px rgba(15, 118, 110, .08);
+}
+
+.primary-nav {
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.primary-nav a {
+  color: var(--color-muted);
+}
+
+.primary-nav a:hover,
+.primary-nav a:focus-visible {
+  color: var(--color-primary);
+  background: #e5f7f3;
+  outline-color: rgba(15, 118, 110, .25);
+}
+
+.primary-nav a.router-link-exact-active {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.toolbar,
+.data-scope,
+.table-shell,
+.method {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 12px 34px rgba(15, 118, 110, .08);
+}
+
+.segmented,
+.toolbar input[type=search],
+.toolbar select {
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.segmented button.active,
+.refresh {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.toggle input:checked + span,
+.meta i,
+.live-dot {
+  background: var(--color-secondary);
+}
+
+.match-table {
+  color: var(--color-foreground);
+  background: var(--color-surface);
+}
+
+.match-table th,
+.match-table td {
+  border-color: var(--color-border);
+}
+
+.match-table th {
+  color: var(--color-foreground);
+  background: #e8f7f4;
+}
+
+.match-table .group-head th {
+  color: var(--color-foreground);
+  background: #d8f1ed;
+}
+
+.match-table tbody tr:nth-child(odd) {
+  background: var(--color-surface);
+}
+
+.match-table tbody tr:nth-child(even) {
+  background: var(--color-surface-subtle);
+}
+
+.match-table tbody tr:hover,
+.match-row.expanded {
+  background: #e8f7f4 !important;
+}
+
+.league-tag {
+  color: var(--color-primary);
+  background: #dff5f1;
+}
+
+.team,
+.score-cell,
+.odds b,
+.method summary,
+.data-scope > strong {
+  color: var(--color-foreground);
+}
+
+.date-cell,
+.match-table .index,
+.goals small,
+.odds span,
+.meta,
+.toolbar label {
+  color: var(--color-muted-soft);
+}
+
+.state-pill,
+.score-cell small,
+.verdict strong,
+.odds.total b {
+  color: var(--color-primary);
+}
+
+.goal-track {
+  background: linear-gradient(180deg, var(--color-secondary), var(--color-primary));
+}
+
+.pressure-toggle {
+  color: var(--color-primary);
+  border-color: #9edbd3;
+  background: #ecf9f7;
+}
+
+.pressure-toggle:hover,
+.pressure-toggle:focus-visible {
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.pressure-detail-row,
+.pressure-detail-row:hover {
+  background: var(--color-surface-subtle) !important;
+}
+
+.pressure-panel.pressure-reference {
+  --pressure-home: var(--series-home);
+  --pressure-away: var(--series-away);
+  color: var(--color-foreground);
+  background: linear-gradient(180deg, #f7fcfb, #eef9f7);
+  box-shadow: inset 0 1px var(--color-border), inset 0 -1px var(--color-border);
+}
+
+.pressure-eyebrow,
+.pressure-header p,
+.pressure-side,
+.pressure-legend,
+.pressure-legend small,
+.gauge-item > span,
+.compare-head,
+.compare-row > div > span,
+.source-team-head,
+.source-stats-title span,
+.source-team-head strong {
+  color: var(--color-muted);
+}
+
+.pressure-reference .pressure-header h3,
+.pressure-reference .pressure-header h3 b,
+.line-legend strong,
+.compare-row > b,
+.source-stats-title b,
+.source-stat-row > b {
+  color: var(--color-foreground);
+}
+
+.pressure-leader {
+  color: var(--color-primary);
+  border-color: #9edbd3;
+  background: #e6f7f4;
+}
+
+.line-chart-wrap,
+.pressure-chart-wrap {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.line-grid line {
+  stroke: rgba(19, 78, 74, .12);
+}
+
+.line-axis-labels text {
+  fill: var(--color-muted);
+}
+
+.pressure-insights {
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.insight-title,
+.source-stats {
+  border-color: var(--color-border);
+}
+
+.insight-title b {
+  color: var(--series-home);
+}
+
+.insight-title span {
+  color: var(--color-muted-soft);
+}
+
+.gauge {
+  background: conic-gradient(var(--color-warning) var(--gauge-value), #dcebe8 0);
+}
+
+.gauge::after {
+  background: var(--color-surface);
+}
+
+.gauge b {
+  color: var(--color-foreground);
+}
+
+.compare-row i,
+.source-stat-row > div > i {
+  background: #dcebe8;
+}
+
+.source-stat-row + .source-stat-row {
+  border-color: #e3f0ee;
+}
+
+.source-stats-empty {
+  color: var(--color-muted);
+  border-color: #9edbd3;
+  background: var(--color-surface-subtle);
+}
+
+.unknown-goal-notice {
+  color: #92400e;
+  border-color: rgba(217, 119, 6, .45);
+  background: #fffbeb;
+}
+
+.line-goal-marker .goal-ring,
+.line-goal-marker .goal-time-pill rect {
+  fill: var(--color-surface);
+  filter: drop-shadow(0 2px 4px rgba(19, 78, 74, .18));
+}
+
+.line-goal-marker .goal-time-pill text {
+  fill: var(--color-foreground);
+}
+
+.table-legend {
+  color: var(--color-muted);
+  background: var(--color-surface-subtle);
+}
+
+:where(button, a, input, select, summary):focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

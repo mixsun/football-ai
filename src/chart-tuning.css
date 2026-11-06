@@ -1,0 +1,93 @@
+.pressure-reference .pressure-line {
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.line-chart-wrap {
+  box-shadow: 0 12px 30px rgba(15, 118, 110, .06), inset 0 1px rgba(255, 255, 255, .9);
+}
+
+.line-pressure-chart {
+  shape-rendering: geometricPrecision;
+}
+
+.plot-surface {
+  fill: #fbfefd;
+  stroke: rgba(15, 118, 110, .08);
+  stroke-width: 1;
+}
+
+.line-grid line {
+  stroke: rgba(19, 78, 74, .09);
+  stroke-width: .8;
+  vector-effect: non-scaling-stroke;
+}
+
+.line-grid line:first-child,
+.line-grid line:nth-child(6) {
+  stroke: rgba(19, 78, 74, .14);
+}
+
+.pressure-area {
+  pointer-events: none;
+}
+
+.pressure-line {
+  transition: opacity .18s ease;
+}
+
+.pressure-line:hover {
+  opacity: .82;
+}
+
+.live-edge line {
+  stroke: rgba(15, 118, 110, .3);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.live-edge text {
+  fill: #0f766e;
+  font-size: 8px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.latest-points circle {
+  fill: #fff;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.latest-points .home-latest { stroke: var(--pressure-home); }
+.latest-points .away-latest { stroke: var(--pressure-away); }
+
+.line-axis-labels text {
+  font-variant-numeric: tabular-nums;
+}
+
+.line-axis-labels .axis-caption {
+  fill: #78938f;
+  font-size: 7.5px;
+  font-weight: 650;
+  letter-spacing: .25px;
+}
+
+.table-shell {
+  max-width: 100%;
+}
+
+@media (min-width: 1600px) {
+  .table-shell {
+    overflow-x: hidden;
+  }
+
+  .pressure-detail-row .pressure-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+}

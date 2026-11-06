@@ -1,10 +1,15 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import router from './router'
 import './style.css'
 import './table.css'
+import './chart-tuning.css'
+import './technical-stats.css'
 import './rules.css'
 import './goal-analysis.css'
 import './goal-structure-query.css'
-import './layout.css'
 import './ai-theme.css'
-createApp(App).mount('#app')
+import './layout.css'
+import './query.css'
+import './unified-theme.css'
+createApp(App).use(router).mount('#app')

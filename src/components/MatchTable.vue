@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { analyzeHalfGoal } from '../lib/analysis'
 import type { LiveMatch, Market, RuleStatus, Triple } from '../types'
+import AttackPressureChart from './AttackPressureChart.vue'
 import GoalStructureModal from './GoalStructureModal.vue'
 
 const props = defineProps<{ matches: LiveMatch[] }>()
 const openTipId = ref<number | null>(null)
 const openAnalysisId = ref<number | null>(null)
+const expandedMatchId = ref<number | null>(null)
 const rows = computed(() => props.matches.map((match, index) => ({ match, index: index + 1, analysis: analyzeHalfGoal(match) })))
 const activeTipRow = computed(() => rows.value.find((row) => row.match.id === openTipId.value) ?? null)
 const activeAnalysisRow = computed(() => rows.value.find((row) => row.match.id === openAnalysisId.value) ?? null)
@@ -29,6 +31,7 @@ const openMatchAnalysis = (id: number) => { closeTip(); openAnalysisId.value = i
 const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') { closeTip(); closeAnalysis() } }
 onMounted(() => { document.addEventListener('click', closeTip); document.addEventListener('keydown', closeOnEscape) })
 onBeforeUnmount(() => { document.removeEventListener('click', closeTip); document.removeEventListener('keydown', closeOnEscape) })
+const togglePressure = (id: number) => { expandedMatchId.value = expandedMatchId.value === id ? null : id }
 </script>
 
 <template>
@@ -49,13 +52,14 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeTip); documen
         <tr><th>主胜</th><th>和局</th><th>客胜</th><th>主水</th><th>让球</th><th>客水</th><th>大</th><th>半场</th><th>小</th></tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="row.match.id" :class="`row-${row.analysis.level}`">
+        <template v-for="row in rows" :key="row.match.id">
+        <tr :class="[`row-${row.analysis.level}`, 'match-row', { expanded: expandedMatchId === row.match.id }]">
           <td class="index match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)">{{ row.index }}</td>
           <td class="match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)"><span class="league-tag">{{ row.match.league }}</span></td>
           <td class="date-cell match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)">{{ time(row.match) }}</td>
           <td class="match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)"><span class="state-pill">{{ state(row.match) }} {{ row.match.minute ?? '—' }}′</span></td>
           <td class="team home match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)">{{ row.match.home }}</td>
-          <td class="score-cell match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)">{{ row.match.homeScore }}-{{ row.match.awayScore }}<small v-if="row.analysis.level === 'done'">有球</small></td>
+          <td class="score-cell">{{ row.match.homeScore }}-{{ row.match.awayScore }}<small v-if="row.analysis.level === 'done'">有球</small><button class="pressure-toggle" type="button" :aria-expanded="expandedMatchId === row.match.id" :aria-controls="`pressure-${row.match.id}`" @click.stop="togglePressure(row.match.id)">{{ expandedMatchId === row.match.id ? '收起' : '压力图' }}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button></td>
           <td class="team match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)">{{ row.match.away }}</td>
           <td class="goals match-entry-cell" role="button" tabindex="0" title="查看上半场进球结构分析" @click.stop="openMatchAnalysis(row.match.id)" @keydown.enter.stop="openMatchAnalysis(row.match.id)"><div class="goal-track"><i v-for="goal in row.match.goalMinutes.filter(m => m <= 45)" :key="goal" :style="{ left: `${Math.min(100, goal / 45 * 100)}%` }">●</i><b>H</b></div><small>{{ row.match.goalMinutes.filter(m => m <= 45).map(m => `${m}′`).join('、') || '暂无' }}</small></td>
           <td class="verdict" :class="{ 'over-sixty': row.analysis.probability !== null && row.analysis.probability > 60, 'next-goal': row.analysis.label.startsWith('下一球') }">
@@ -69,6 +73,10 @@ onBeforeUnmount(() => { document.removeEventListener('click', closeTip); documen
           <td v-for="key in (['left','line','right'] as const)" :key="`ah-${key}`" class="odds"><span>{{ side(row.match.markets?.asian, key)[0] }}</span><b>{{ side(row.match.markets?.asian, key)[1] }}</b></td>
           <td v-for="key in (['left','line','right'] as const)" :key="`ht-${key}`" class="odds total"><span>{{ side(row.match.markets?.halfTotal, key)[0] }}</span><b>{{ side(row.match.markets?.halfTotal, key)[1] }}</b></td>
         </tr>
+        <tr v-if="expandedMatchId === row.match.id" class="pressure-detail-row">
+          <td colspan="19"><div :id="`pressure-${row.match.id}`"><AttackPressureChart :match="row.match" /></div></td>
+        </tr>
+        </template>
       </tbody>
     </table>
     <div class="table-legend"><span>每格：上行为初值，下行为即时值；点击判断旁的 i 查看252/253及判断依据</span><span><b class="legend-next">下一球</b>进球后续判　<b class="legend-sixty">⚡ 60%+</b>重点　<i class="high"></i>规则命中　<i class="watch"></i>待验证</span></div>

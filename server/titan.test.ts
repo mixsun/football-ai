@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capGoalEventsToScore, parseAsianLine, parseGoals, parseHalfGoalHistory, parseMatchDetail, parseOdds, parseSchedules, parseTotalLine } from './titan.ts'
+import { capGoalEventsToScore, parseAsianLine, parseDetailGoalEvents, parseGoalRows, parseGoals, parseHalfGoalHistory, parseMatchDetail, parseOdds, parseSchedules, parseTechnicalStats, parseTotalLine } from './titan.ts'
 
 describe('Titan feed parsers', () => {
   it('parses an in-play schedule record', () => {
@@ -20,6 +20,36 @@ describe('Titan feed parsers', () => {
   it('drops a late goal event when the confirmed score remains goalless', () => {
     expect(capGoalEventsToScore(0, 0, [45], [{ minute: 45, side: 'away' }])).toEqual({ goalMinutes: [], goalEvents: [] })
     expect(capGoalEventsToScore(0, 1, [45], [{ minute: 45, side: 'away' }]).goalMinutes).toEqual([45])
+  })
+  it('parses goal rows already loaded by the live browser page', () => {
+    const goals = parseGoalRows(['9^1^1^18', '9^1^3^22', '9^2^1^31'])
+    expect(goals.get(9)).toEqual([18, 31])
+  })
+  it('parses exact goal minutes and sides from the match detail event list', () => {
+    const html = `<ul class="listbox" id="teamEventDiv">
+      <li class="teamtit"><div class="data"><span>主队 1</span><span></span><span>客队 1</span></div></li>
+      <li class="lists"><div class="data"><span><img src="/images/bf_img2/1.png" title="入球"></span><span>18'</span><span></span></div></li>
+      <li class="lists"><div class="data"><span></span><span>45+2′</span><span><img src="/images/bf_img2/7.png" title="点球"></span></div></li>
+      <li class="lists"><div class="data"><span><img src="/images/bf_img2/3.png" title="黄牌"></span><span>30'</span><span></span></div></li>
+    </ul>`
+    expect(parseDetailGoalEvents(html)).toEqual([
+      { minute: 18, side: 'home' },
+      { minute: 47, side: 'away' },
+    ])
+  })
+  it('parses the four source technical statistics from the detail page', () => {
+    const html = `<div id="techCountAll">
+      <li class="lists"><div class="data"><span class="red">3</span><span>射门</span><span>16</span></div></li>
+      <li class="lists"><div class="data"><span>1</span><span>射正</span><span>7</span></div></li>
+      <div class="barbox"><span class="value">33%</span><span class="Ht"><span class="bar"></span></span><span class="data">控球率</span><span class="Gt"><span class="bar"></span></span><span class="value">67%</span></div>
+      <div class="barbox"><span class="value">32</span><span class="Ht"><span class="bar"></span></span><span class="data">危险进攻</span><span class="Gt"><span class="bar"></span></span><span class="value">76</span></div>
+    </div>`
+    expect(parseTechnicalStats(html)).toEqual({
+      shots: { home: 3, away: 16 },
+      shotsOnTarget: { home: 1, away: 7 },
+      possession: { home: 33, away: 67 },
+      dangerousAttacks: { home: 32, away: 76 },
+    })
   })
   it('normalizes Chinese handicap and quarter total lines', () => {
     expect(parseAsianLine('半/一')).toBe(0.75)

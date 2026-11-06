@@ -6,15 +6,25 @@ export interface GoalEvent { minute: number; side: GoalSide }
 export interface MatchDetailEvent { kind: number; label: string; minute: number; extraMinute: number; side: 'home' | 'away'; player: string; assist: string; note: string }
 export interface MatchDetailStatistic { kind: number; label: string; home: string; away: string; homePercent: number; awayPercent: number }
 export interface MatchDetailResponse { fetchedAt: string; source: string; events: MatchDetailEvent[]; stats: MatchDetailStatistic[] }
+export interface PressurePoint { minute: number; home: number; away: number }
+export interface TechnicalStatPair { home: number | null; away: number | null }
+export interface TechnicalStats {
+  shots: TechnicalStatPair
+  shotsOnTarget: TechnicalStatPair
+  possession: TechnicalStatPair
+  dangerousAttacks: TechnicalStatPair
+}
 export interface TeamHalfHistory { sample: number; withGoal: number }
 export interface HalfGoalHistory { home: TeamHalfHistory; away: TeamHalfHistory }
 export interface LiveMatch {
   id: number; league: string; home: string; away: string; scheduledAt: string; actualStart: string | null
   state: number; minute: number | null; homeScore: number; awayScore: number; homeHalfScore: number; awayHalfScore: number
   goalMinutes: number[]; goalEvents?: GoalEvent[]; halfGoalHistory?: HalfGoalHistory; markets: Markets | null; sameMarketCount: number
+  pressureTimeline?: PressurePoint[]; technicalStats?: TechnicalStats
 }
 export interface LiveResponse { fetchedAt: string; source: string; matches: LiveMatch[] }
 export type RiskLevel = 'done' | 'high' | 'medium' | 'watch' | 'low' | 'unavailable'
 export type RuleStatus = 'match' | 'miss' | 'unknown'
 export interface RuleEvidence { code: string; label: string; status: RuleStatus; details: string[] }
-export interface Analysis { probability: number | null; level: RiskLevel; label: string; reason: string; signals: string[]; rules: RuleEvidence[] }
+export interface GoalForecast { probability: number | null; level: RiskLevel; label: string; reason: string; signals: string[] }
+export interface Analysis extends GoalForecast { rules: RuleEvidence[] }

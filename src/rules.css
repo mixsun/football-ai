@@ -3,6 +3,56 @@
   position: relative;
 }
 
+.verdict-primary > strong,
+.verdict-primary > span {
+  display: block;
+}
+
+.verdict-primary > strong {
+  font-size: 17px;
+  color: #8df1bd;
+}
+
+.verdict-primary > span {
+  color: #86a596;
+  font-size: 10px;
+}
+
+.next-goal-forecast {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px 6px;
+  margin-top: 7px;
+  padding: 6px 7px;
+  border: 1px solid #3e604f;
+  border-radius: 7px;
+  background: #10271d;
+  font-variant-numeric: tabular-nums;
+}
+
+.next-goal-forecast > span {
+  color: #8da99c;
+  font-size: 9px;
+}
+
+.next-goal-forecast > strong {
+  color: #f0cd62;
+  font-size: 14px;
+}
+
+.next-goal-forecast > small {
+  grid-column: 1 / -1;
+  color: #9db7ab;
+  font-size: 9px;
+}
+
+.next-goal-forecast.is-high > strong { color: #65e9a7; }
+.next-goal-forecast.is-medium > strong { color: #b5e88c; }
+.next-goal-forecast.is-low > strong,
+.next-goal-forecast.is-unavailable > strong { color: #e8967d; }
+
 .verdict > small {
   display: block;
   margin-top: 4px;
